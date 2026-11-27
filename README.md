@@ -8,13 +8,13 @@
 
 ## 界面预览
 
-| 运行状态 | 耗电画像 |
-|---|---|
-| ![运行状态](docs/screenshots/01-status.jpg) | ![耗电画像](docs/screenshots/02-battery.jpg) |
-
-| 应用分流 | CPU 与 WALT 配置 |
-|---|---|
-| ![应用分流](docs/screenshots/03-apps.jpg) | ![配置](docs/screenshots/04-config.jpg) |
+<p align="center">
+  <img src="docs/screenshots/01-status.jpg"  width="23%" alt="运行状态" />
+  <img src="docs/screenshots/02-battery.jpg" width="23%" alt="耗电画像" />
+  <img src="docs/screenshots/03-apps.jpg"    width="23%" alt="应用分流" />
+  <img src="docs/screenshots/04-config.jpg"  width="23%" alt="CPU 与 WALT 配置" />
+</p>
+<p align="center"><sub>运行状态　·　耗电画像　·　应用分流　·　CPU 与 WALT 配置</sub></p>
 
 ## 它特别在哪
 
