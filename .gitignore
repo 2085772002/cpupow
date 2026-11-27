@@ -1,0 +1,5 @@
+# 构建产物与缓存
+out/
+.work/
+__pycache__/
+*.pyc

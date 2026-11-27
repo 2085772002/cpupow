@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="color-scheme" content="light dark">
+    <title>sysfs 轻调度</title>
+    <script>
+    /* 说明：主题引导（v2.5.4）。
+       问题：组件样式里的深色规则全部挂在 html.dark 上（例如 .dark .cpu-config、
+       .dark .cp-boot、.dark .mode-save），但页面从来没有给 html 加过 dark 类——
+       这些规则一直是死代码，于是系统深色模式下只有 Tailwind 的 media 变体生效，
+       配置页（全用 .cpu-* 变量）、启动页、模式徽章、图标遮罩仍然一片浅色。
+       做法：首帧前按系统偏好同步一次 html.dark，并监听偏好变化；
+       同时写 color-scheme，让原生滚动条、下拉框、数字输入框跟随主题。 */
+    (function () {
+        var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        function apply(dark) {
+            var root = document.documentElement;
+            if (!root) return;
+            if (dark) root.classList.add('dark');
+            else root.classList.remove('dark');
+            try { root.style.colorScheme = dark ? 'dark' : 'light'; } catch (e) {}
+        }
+        apply(!!(mq && mq.matches));
+        if (mq) {
+            if (mq.addEventListener) mq.addEventListener('change', function (e) { apply(!!e.matches); });
+            else if (mq.addListener) mq.addListener(function (e) { apply(!!e.matches); });
+        }
+    })();
+    </script>
+    <script>
+        /* 分级错误机制（v1.20.1 bug修复，需求：技术细节不暴露给用户）：
+       1) 资源加载失败（img/script/link 等非阻断）→ 仅记 __errs 后台日志，不上横幅；
+          img 自动替换为通用占位图标（静默降级，全程无提示）。
+       2) JS 运行时错误/unhandledrejection（可能影响核心功能）→ 横幅提示，
+          但只用通俗文案，不输出代码、链接、文件名等技术信息。
+       3) console.error → 仅记日志。 */
+    window.__errs = [];
+    function __log(msg) {
+        try { window.__errs.push(String(msg).slice(0, 1500)); } catch (e) {}
+    }
+    /* 图片占位图标：灰底圆角方块 + 通用图片符号（SVG data URI） */
+    var __IMG_PH = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">' +
+        '<rect width="40" height="40" rx="10" fill="#cbd5e1"/>' +
+        '<circle cx="15" cy="16" r="3.5" fill="#94a3b8"/>' +
+        '<path d="M8 30l8-9 6 6 4-4 6 7z" fill="#94a3b8"/></svg>');
+    function __showFatal() {
+        try {
+            var d = document.getElementById('__errbar');
+            if (!d) {
+                d = document.createElement('div');
+                d.id = '__errbar';
+                d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#dc2626;color:#fff;font:12px/1.6 sans-serif;padding:8px 12px;text-align:center;';
+                if (document.body) document.body.appendChild(d);
+                else document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(d); });
+            }
+            d.textContent = '页面运行出错，已记录详情；请刷新页面重试';
+        } catch (e) {}
+    }
+    window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (t && t !== window && t.tagName) {
+            var tag = t.tagName.toLowerCase();
+            if (tag === 'img') {
+                /* 图片加载失败：静默降级占位图标，仅后台记录 */
+                __log('img fallback: ' + (t.src || ''));
+                if (!t.getAttribute('data-ph')) {
+                    t.setAttribute('data-ph', '1');
+                    t.src = __IMG_PH;
+                }
+                return;
+            }
+            if (t.src || t.href) {
+                /* script/css/link 等资源失败：非阻断，仅后台记录不上横幅 */
+                __log('resource failed: <' + tag + '> ' + (t.src || t.href));
+                return;
+            }
+        }
+        __log('js error: ' + (e.message || 'error') + ' @' + (e.filename || '').split('/').pop() + ':' + (e.lineno || ''));
+        __showFatal();
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+        __log('promise: ' + ((e.reason && e.reason.message) || e.reason));
+    });
+    (function () {
+        var orig = console.error;
+        console.error = function () {
+            try { __log('console.error: ' + Array.prototype.slice.call(arguments).map(String).join(' ').slice(0, 1500)); } catch (e) {}
+            if (orig) orig.apply(console, arguments);
+        };
+    })();
+    </script>
+    
+    <style type="text/css">
+        body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass-panel { background-color: rgba(15,23,42,.94); }
+        .app-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.3); flex-shrink: 0; }
+        .mode-badge { display: inline-block; padding: 4px 8px; border-radius: 8px; font-size: 10px; font-weight: bold; border-width: 1px; border-style: solid; }
+        .mode-save { color: #059669; background: #ecfdf5; border-color: #6ee7b7; }
+        .dark .mode-save { color: #34d399; background: rgba(16,185,129,0.15); border-color: #065f46; }
+        .mode-bal { color: #2563eb; background: #eff6ff; border-color: #93c5fd; }
+        .dark .mode-bal { color: #60a5fa; background: rgba(59,130,246,0.15); border-color: #1e3a8a; }
+        .mode-perf { color: #ea580c; background: #fff7ed; border-color: #fdba74; }
+        .dark .mode-perf { color: #fb923c; background: rgba(249,115,22,0.15); border-color: #7c2d12; }
+        .mode-fast { color: #e11d48; background: #fff1f2; border-color: #fda4af; }
+        .dark .mode-fast { color: #fb7185; background: rgba(244,63,94,0.15); border-color: #9f1239; }
+        .mode-default { color: #64748b; background: #f8fafc; border-color: #cbd5e1; }
+        .dark .mode-default { color: #94a3b8; background: #1e293b; border-color: #334155; }
+        .loading-dot { position: absolute; inset: 0; background: rgba(0,0,0,0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .spinner { width: 3px; height: 3px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .cp-loading-ring { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(139,92,246,.22); border-top-color: #8b5cf6; border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+        /* 说明：图标就绪后底衬完全让位。保留彩色底会让图片的圆角抗锯齿边缘透出一圈异色。 */
+        .cp-icon-ready { background: transparent !important; }
+        /* 说明：让 img 自带与容器一致的圆角，避免「容器裁剪 + 方图」两层几何叠出毛边。 */
+        .cp-icon-img { border-radius: inherit; background: transparent; }
+        .cp-icon-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.78); }
+        .dark .cp-icon-loading { background: rgba(30,41,59,.85); }
+        .cp-icon-reveal { animation: cp-icon-reveal .22s ease-out both; }
+        /* 说明：只做透明度淡入。早期带 scale(.94)，动画期间图标四周会缩进约 1px，
+           圆角处露出底层首字母色块，表现为图标边缘有一圈异色。 */
+        @keyframes cp-icon-reveal { from { opacity: 0; } to { opacity: 1; } }
+        .cp-skeleton-row { display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 8px; border-radius: 12px; background: rgba(148,163,184,.08); }
+        .cp-skeleton-icon, .cp-skeleton-lines { background: linear-gradient(100deg,rgba(148,163,184,.12) 20%,rgba(148,163,184,.28) 45%,rgba(148,163,184,.12) 70%); background-size: 220% 100%; animation: cp-shimmer 1.4s ease-in-out infinite; }
+        .cp-skeleton-icon { width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; }
+        .cp-skeleton-lines { width: 60%; height: 24px; border-radius: 6px; }
+        .cp-name-loading { display: inline-block; width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: #8b5cf6; animation: cp-pulse 1.4s ease-in-out infinite; vertical-align: middle; }
+        @keyframes cp-shimmer { to { background-position: -220% 0; } }
+        @keyframes cp-pulse { 50% { opacity: .3; } }
+        @media (prefers-reduced-motion: reduce) { .cp-loading-ring, .cp-icon-reveal, .cp-skeleton-icon, .cp-skeleton-lines, .cp-name-loading { animation: none; } }
+        input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: linear-gradient(to right, #8b5cf6 0%, #8b5cf6 var(--pct,50%), #e2e8f0 var(--pct,50%), #e2e8f0 100%); outline: none; width: 100%; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #8b5cf6; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.25); cursor: pointer; }
+        /* 说明：深色下轨道与滑块描边改用暗色，避免浅色轨道在纯黑页面上发白刺眼。 */
+        .dark input[type=range] { background: linear-gradient(to right, #8b5cf6 0%, #8b5cf6 var(--pct,50%), #334155 var(--pct,50%), #334155 100%); }
+        .dark input[type=range]::-webkit-slider-thumb { border-color: #0a0a0a; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+
+        /* v1.15.0 页面切换过渡：main[page-in] 每次切 Tab 重挂载时淡入上移 */
+        @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .page-in { animation: pageIn .22s ease-out both; }
+
+        /* v1.15.0 全局轻量 Tooltip：hover/点按展开，用于包名、术语、图表项说明 */
+        .tip { position: relative; }
+        .tip > .tip-body {
+            visibility: hidden; opacity: 0;
+            position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%) translateY(3px);
+            background: rgba(15,23,42,.94); color: #f1f5f9;
+            font-size: 10px; line-height: 1.45; font-weight: 600;
+            padding: 6px 9px; border-radius: 9px; white-space: pre-line;
+            width: max-content; max-width: 240px; z-index: 60; pointer-events: none;
+            transition: opacity .16s ease, transform .16s ease;
+            box-shadow: 0 6px 20px rgba(0,0,0,.22);
+        }
+        .tip:hover > .tip-body, .tip:focus-within > .tip-body, .tip.open > .tip-body {
+            visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0);
+        }
+        /* 问号触发器：让专业名词可点按查看解释 */
+        .tip-q {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 13px; height: 13px; margin-left: 4px; border-radius: 50%;
+            background: rgba(139,92,246,.14); color: #7c3aed;
+            font-size: 9px; font-weight: 900; vertical-align: middle; cursor: help;
+            border: none; padding: 0; flex-shrink: 0;
+        }
+        .dark .tip-q { background: rgba(167,139,250,.18); color: #a78bfa; }
+    </style>
+
+    <!-- 样式在构建时生成，生产设备不运行 Tailwind 编译器或样式监听器。 -->
+    <link rel="stylesheet" href="css/app.css?v=1.0.0&rev=ui-3fe1945c8583">
+    <script src="./lib/react.production.min.js"></script>
+    <script src="./lib/react-dom.production.min.js"></script>
+</head>
+<body class="bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 antialiased selection:bg-brand-500/30">
+    <div id="root"></div>
+    <div id="skeleton" style="position:fixed; top:0; left:0; right:0; bottom:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:transparent; z-index:9999; pointer-events:none;">
+        <div style="width:36px; height:36px; border:4px solid rgba(139,92,246,0.2); border-top:4px solid #8b5cf6; border-radius:50%; animation:spin 1s linear infinite;"></div>
+        <div style="margin-top:16px; font-size:13px; font-weight:bold; color:#64748b;">引擎组件组装中...</div>
+        <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+
+    <script src="js/common/core.js?v=1.0.0&rev=ui-25914fbb2d2f"></script>
+    <script src="js/common/ui.js?v=1.0.0&rev=ui-ab08831fc5f9"></script>
+    <script src="js/common/pull_load.js?v=1.0.0&rev=ui-07ea72a31e44"></script>
+    <script src="js/common/cpu_policy_model.js?v=1.0.0&rev=ui-1db8ce938891"></script>
+    <script src="js/common/cpu_policy_service.js?v=1.0.0&rev=ui-cc35f9583f91"></script>
+    <script src="js/views/views_config.js?v=1.0.0&rev=ui-f19204d5c738"></script>
+    <script src="js/common/status_model.js?v=1.0.0&rev=ui-3dbfc809e6c9"></script>
+    <script src="js/views/views_status.js?v=1.0.0&rev=ui-66eefed59867"></script>
+    <script src="js/views/views_apps.js?v=1.0.0&rev=ui-80c00eb141d7"></script>
+    <script src="js/views/views_logs.js?v=1.0.0&rev=ui-1638d5c03c79"></script>
+    <script src="js/views/views_battery.js?v=1.0.0&rev=ui-615ad4be0604"></script>
+    <script src="js/app.js?v=1.0.0&rev=ui-974facdb9ab9"></script>
+</body>
+</html>

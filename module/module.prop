@@ -1,0 +1,6 @@
+id=cpupow
+name=cpupow调度
+version=v1.0.0
+versionCode=20261127
+author=渺o小
+description=对澎湃CPUWalt调速器参数修改，根据经验配置能效（理论一加也可用）

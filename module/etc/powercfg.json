@@ -1,0 +1,14 @@
+{
+    "name": "cpupow调度",
+    "author": "渺o小",
+    "version": "v1.0.0",
+    "versionCode": 20261127,
+    "features": {
+        "strict": true,
+        "pedestal": true
+    },
+    "module": "cpupow",
+    "state": "",
+    "entry": "/data/adb/modules/cpupow/bin/powercfg.sh",
+    "projectUrl": ""
+}
